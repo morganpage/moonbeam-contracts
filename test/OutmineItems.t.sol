@@ -22,10 +22,7 @@ contract OutmineItemsTest is Test {
     function testAdminCanSetURI() public {
         vm.prank(admin);
         items.setURI("https://example.com/metadata/");
-        assertEq(
-            items.uri(1),
-            string(abi.encodePacked("https://example.com/metadata/", "1"))
-        );
+        assertEq(items.uri(1), string(abi.encodePacked("https://example.com/metadata/", "1")));
     }
 
     function testMinterCanMint() public {

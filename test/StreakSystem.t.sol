@@ -6,19 +6,10 @@ import "src/StreakSystem.sol";
 
 contract MockERC1155 is IERC1155Mintable {
     mapping(address => mapping(uint256 => uint256)) public minted;
-    event Mint(
-        address indexed to,
-        uint256 indexed id,
-        uint256 amount,
-        bytes data
-    );
 
-    function mint(
-        address to,
-        uint256 id,
-        uint256 amount,
-        bytes memory data
-    ) external override {
+    event Mint(address indexed to, uint256 indexed id, uint256 amount, bytes data);
+
+    function mint(address to, uint256 id, uint256 amount, bytes memory data) external override {
         minted[to][id] += amount;
         emit Mint(to, id, amount, data);
     }
