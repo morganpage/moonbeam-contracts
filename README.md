@@ -21,31 +21,23 @@ An ERC721 NFT contract. Usually the pets will be minted within the game by the a
 ### Outmine Items
 The ERC1155 contract. Implements all the on-chain game items in Outmine. Since we also use Outmine Items for achievements I've added the ability to make some items Soulbound.
 
-### Game Payment
-This is a simple contract to handle GLMR payments in Outmine.
-
 
 ## Testnet Deployment
 ```
 forge create --broadcast --rpc-url https://rpc.api.moonbase.moonbeam.network --private-key $PRIVATE_KEY src/StreakSystem.sol:StreakSystem
 forge create --broadcast --rpc-url https://rpc.api.moonbase.moonbeam.network --private-key $PRIVATE_KEY src/OutminePets.sol:OutminePets
 forge create --broadcast --rpc-url https://rpc.api.moonbase.moonbeam.network --private-key $PRIVATE_KEY src/OutmineItems.sol:OutmineItems
-forge create --broadcast --rpc-url https://rpc.api.moonbase.moonbeam.network --private-key $PRIVATE_KEY src/GamePayment.sol:GamePayment
-
 
 StreakSystem - 0xc2dEaE151C731c1c8fCcd2af1227b1A4bFBb73Db
 OutminePets - 0x6B408F069B78098c0959a65c8583bFa398AceA05
 OutmineItems - 0x8EcCE4d0D74436a72fd0cAc45774f6E303F2808e
-GamePayment - 0x9dC529ed4f9806eE36E207066764B75b1AeEABa2
 
 forge verify-contract --chain moonbase 0xc2dEaE151C731c1c8fCcd2af1227b1A4bFBb73Db src/StreakSystem.sol:StreakSystem
 forge verify-contract --chain moonbase 0x6B408F069B78098c0959a65c8583bFa398AceA05 src/OutminePets.sol:OutminePets
 forge verify-contract --chain moonbase 0x8EcCE4d0D74436a72fd0cAc45774f6E303F2808e src/OutmineItems.sol:OutmineItems
-forge verify-contract --chain moonbase 0x9dC529ed4f9806eE36E207066764B75b1AeEABa2 src/GamePayment.sol:GamePayment
-
 
 If above verify doesn't work (didn't for me) then do:
-forge flatten --output src/GamePayment.flattened.sol src/GamePayment.sol
+forge flatten --output src/OutminePets.flattened.sol src/OutminePets.sol
 Then verify at: https://moonbeam.moonscan.io/verifyContract
 
 ```
@@ -55,19 +47,14 @@ Then verify at: https://moonbeam.moonscan.io/verifyContract
 forge create --broadcast --rpc-url https://moonbeam.public.blastapi.io --private-key $PRIVATE_KEY src/StreakSystem.sol:StreakSystem
 forge create --broadcast --rpc-url https://moonbeam.public.blastapi.io --private-key $PRIVATE_KEY src/OutminePets.sol:OutminePets
 forge create --broadcast --rpc-url https://moonbeam.public.blastapi.io --private-key $PRIVATE_KEY src/OutmineItems.sol:OutmineItems
-forge create --broadcast --rpc-url https://moonbeam.public.blastapi.io --private-key $PRIVATE_KEY src/GamePayment.sol:GamePayment
-
 
 StreakSystem - 0x8EcCE4d0D74436a72fd0cAc45774f6E303F2808e
 OutminePets - 0xc2dEaE151C731c1c8fCcd2af1227b1A4bFBb73Db
 OutmineItems - 0x6B408F069B78098c0959a65c8583bFa398AceA05
-GamePayment - 0x9dC529ed4f9806eE36E207066764B75b1AeEABa2
 
 forge verify-contract --chain moonbeam 0x8EcCE4d0D74436a72fd0cAc45774f6E303F2808e src/StreakSystem.sol:StreakSystem
 forge verify-contract --chain moonbeam 0xc2dEaE151C731c1c8fCcd2af1227b1A4bFBb73Db src/OutminePets.sol:OutminePets
 forge verify-contract --chain moonbeam 0x6B408F069B78098c0959a65c8583bFa398AceA05 src/OutmineItems.sol:OutmineItems
-forge verify-contract --chain moonbeam 0x9dC529ed4f9806eE36E207066764B75b1AeEABa2 src/GamePayment.sol:GamePayment
-
 ```
 
 
