@@ -3,9 +3,65 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "src/OutminePets.sol";
+import "openzeppelin-contracts/contracts/token/ERC721/IERC721Receiver.sol";
 
 contract Receiver {
     receive() external payable {}
+}
+
+contract ReentrantMinter is IERC721Receiver {
+    OutminePets public immutable pets;
+    bool private attackOnReceive;
+    uint256 private attackPrice;
+
+    constructor(OutminePets _pets) {
+        pets = _pets;
+    }
+
+    receive() external payable {}
+
+    function configureAttack(uint256 price) external {
+        attackPrice = price;
+    }
+
+    function mintWithReentrancy() external {
+        require(attackPrice > 0, "attack price not set");
+        require(address(this).balance >= attackPrice * 2, "insufficient funds");
+        attackOnReceive = true;
+        pets.mintPayable{value: attackPrice}();
+        attackOnReceive = false;
+    }
+
+    function onERC721Received(address, address, uint256, bytes calldata) external override returns (bytes4) {
+        if (attackOnReceive) {
+            attackOnReceive = false;
+            pets.mintPayable{value: attackPrice}();
+        }
+        return IERC721Receiver.onERC721Received.selector;
+    }
+}
+
+contract ReentrantMinterRole is IERC721Receiver {
+    OutminePets public immutable pets;
+    bool private attackEnabled;
+
+    constructor(OutminePets _pets) {
+        pets = _pets;
+    }
+
+    function startAttack() external {
+        attackEnabled = true;
+        pets.mint(address(this));
+        attackEnabled = false;
+    }
+
+    function onERC721Received(address, address, uint256, bytes calldata) external override returns (bytes4) {
+        if (attackEnabled) {
+            attackEnabled = false;
+            pets.mint(address(this));
+        }
+        return IERC721Receiver.onERC721Received.selector;
+    }
 }
 
 contract OutminePetsTest is Test {
@@ -38,6 +94,19 @@ contract OutminePetsTest is Test {
         assertEq(pets.mintPrice(), 2 ether);
     }
 
+    function testAdminCanSetMaxSupplyBackToUnlimitedAfterMinting() public {
+        vm.prank(minter);
+        pets.mint(user);
+
+        vm.prank(admin);
+        pets.setMaxSupply(0);
+        assertEq(pets.maxSupply(), 0);
+
+        vm.prank(minter);
+        pets.mintBatch(user, 11);
+        assertEq(pets.ownerOf(11), user);
+    }
+
     function testAdminCanSetBaseURI() public {
         vm.prank(admin);
         pets.setBaseURI("https://new.example.com/");
@@ -48,6 +117,39 @@ contract OutminePetsTest is Test {
         vm.prank(minter);
         pets.mint(user);
         assertEq(pets.ownerOf(0), user);
+    }
+
+    function testMinterCanBatchMint() public {
+        vm.prank(minter);
+        pets.mintBatch(user, 3);
+        assertEq(pets.ownerOf(0), user);
+        assertEq(pets.ownerOf(1), user);
+        assertEq(pets.ownerOf(2), user);
+    }
+
+    function testMinterCanMintToReentrantReceiver() public {
+        ReentrantMinterRole attacker = new ReentrantMinterRole(pets);
+        vm.startPrank(admin);
+        pets.grantRole(pets.MINTER_ROLE(), address(attacker));
+        vm.stopPrank();
+
+        vm.prank(address(attacker));
+        attacker.startAttack();
+
+        assertEq(pets.ownerOf(0), address(attacker));
+        assertEq(pets.ownerOf(1), address(attacker));
+    }
+
+    function testBatchMintFailsWithZeroQuantity() public {
+        vm.prank(minter);
+        vm.expectRevert("Invalid batch quantity");
+        pets.mintBatch(user, 0);
+    }
+
+    function testBatchMintFailsWhenExceedingMaxSupply() public {
+        vm.prank(minter);
+        vm.expectRevert("Max supply reached");
+        pets.mintBatch(user, 11);
     }
 
     function testMintPayableWorks() public {
@@ -109,5 +211,25 @@ contract OutminePetsTest is Test {
     function testNonPauserCannotPause() public {
         vm.expectRevert();
         pets.pause();
+    }
+
+    function testMintPayableSucceedsAgainstReentrantReceiver() public {
+        ReentrantMinter attacker = new ReentrantMinter(pets);
+        attacker.configureAttack(1 ether);
+        vm.deal(address(attacker), 2 ether);
+
+        vm.expectRevert();
+        attacker.mintWithReentrancy();
+    }
+
+    function testBatchMintSupplyCheckDoesNotOverflow() public {
+        vm.prank(admin);
+        pets.setMaxSupply(type(uint256).max);
+
+        vm.store(address(pets), bytes32(uint256(9)), bytes32(type(uint256).max - 1));
+
+        vm.prank(minter);
+        vm.expectRevert("Max supply reached");
+        pets.mintBatch(user, 2);
     }
 }

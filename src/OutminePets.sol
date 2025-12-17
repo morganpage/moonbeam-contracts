@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
 import "openzeppelin-contracts/contracts/token/ERC721/extensions/ERC721Pausable.sol";
 import "openzeppelin-contracts/contracts/access/AccessControl.sol";
+import "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 
 event MaxSupplySet(uint256 newMaxSupply);
 
@@ -13,7 +14,9 @@ event MintPriceSet(uint256 newPrice);
 
 event Withdrawn(address to, uint256 amount);
 
-contract OutminePets is ERC721, ERC721Pausable, AccessControl {
+event BatchMint(address indexed to, uint256 startTokenId, uint256 quantity);
+
+contract OutminePets is ERC721, ERC721Pausable, AccessControl, ReentrancyGuard {
     uint256 private _nextTokenId;
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
@@ -28,7 +31,7 @@ contract OutminePets is ERC721, ERC721Pausable, AccessControl {
     }
 
     function setMaxSupply(uint256 maxSupply_) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(maxSupply_ >= _nextTokenId, "Cannot set max supply below current supply");
+        require(maxSupply_ == 0 || maxSupply_ >= _nextTokenId, "Cannot set max supply below current supply");
         _maxSupply = maxSupply_;
         emit MaxSupplySet(maxSupply_);
     }
@@ -38,11 +41,30 @@ contract OutminePets is ERC721, ERC721Pausable, AccessControl {
     }
 
     function mint(address to) public onlyRole(MINTER_ROLE) whenNotPaused {
-        require(_maxSupply == 0 || _nextTokenId < _maxSupply, "Max supply reached");
-        _safeMint(to, _nextTokenId);
+        uint256 tokenId = _nextTokenId;
+        require(_maxSupply == 0 || tokenId < _maxSupply, "Max supply reached");
         unchecked {
-            _nextTokenId++;
+            _nextTokenId = tokenId + 1;
         }
+        _safeMint(to, tokenId);
+    }
+
+    function mintBatch(address to, uint256 quantity) public onlyRole(MINTER_ROLE) whenNotPaused {
+        require(quantity > 0, "Invalid batch quantity");
+        if (_maxSupply != 0) {
+            require(quantity <= _maxSupply - _nextTokenId, "Max supply reached");
+        }
+
+        uint256 startTokenId = _nextTokenId;
+        for (uint256 i = 0; i < quantity; ++i) {
+            uint256 tokenId = _nextTokenId;
+            unchecked {
+                _nextTokenId = tokenId + 1;
+            }
+            _safeMint(to, tokenId);
+        }
+
+        emit BatchMint(to, startTokenId, quantity);
     }
 
     function pause() public onlyRole(PAUSER_ROLE) {
@@ -53,7 +75,7 @@ contract OutminePets is ERC721, ERC721Pausable, AccessControl {
         _unpause();
     }
 
-    function withdraw(address payable to) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function withdraw(address payable to) public onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         require(address(this).balance > 0, "No funds to withdraw");
         uint256 amount = address(this).balance;
         (bool sent,) = to.call{value: amount}("");
@@ -79,14 +101,15 @@ contract OutminePets is ERC721, ERC721Pausable, AccessControl {
         return _mintPrice;
     }
 
-    function mintPayable() public payable whenNotPaused {
+    function mintPayable() public payable whenNotPaused nonReentrant {
         require(_mintPrice > 0, "Mint price not set");
         require(msg.value == _mintPrice, "Incorrect Ether value sent");
-        require(_maxSupply == 0 || _nextTokenId < _maxSupply, "Max supply reached");
-        _safeMint(msg.sender, _nextTokenId);
+        uint256 tokenId = _nextTokenId;
+        require(_maxSupply == 0 || tokenId < _maxSupply, "Max supply reached");
         unchecked {
-            _nextTokenId++;
+            _nextTokenId = tokenId + 1;
         }
+        _safeMint(msg.sender, tokenId);
     }
 
     receive() external payable {}
